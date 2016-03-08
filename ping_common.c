@@ -708,7 +708,7 @@ void setup(int icmp_sock)
 	}
 }
 
-void main_loop(int icmp_sock, __u8 *packet, int packlen)
+void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping)
 {
 	char addrbuf[128];
 	char ans_data[4096];

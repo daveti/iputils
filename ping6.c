@@ -166,6 +166,9 @@ int pmtudisc=-1;
 
 static int icmp_sock;
 
+/* daveti: for ncping6 */
+static int ndp_sock;
+
 #ifdef USE_GNUTLS
 # include <gnutls/openssl.h>
 #else
@@ -692,6 +695,36 @@ static int hextoui(const char *str)
 	return val;
 }
 
+/* daveti: Setup the netlink socket for route control */
+static void setup_ndp_sock()
+{
+	struct sockaddr_nl	la;
+	int			rtn;
+
+	/* Open the socket */
+	ndp_sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	if (ndp_sock < 0) {
+		printf("daveti: netlink route socket creation failed [%s]\n",
+			strerror(errno));
+		ndp_sock = 0;
+		return;
+	}
+
+	/* Bind the local IPv6 address */
+	bzero(&la, sizeof(la));
+	la.nl_family = AF_NETLINK;
+	la.nl_pid = getpid();
+	la.nl_groups = 0;
+	rtn = bind(ndp_sock, (struct sockaddr*) &la, sizeof(la));
+	if (rtn < 0) {
+		printf("daveti: netlink route socket bind failed [%s]\n",
+			strerror(errno));
+		/* Close the ndp socket now */
+		close(ndp_sock);
+		ndp_sock = 0;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int ch, hold, packlen;
@@ -703,6 +736,7 @@ int main(int argc, char *argv[])
 	int socket_errno;
 	struct icmp6_filter filter;
 	int err;
+	int ncping;	/* daveti: for ncping */
 #ifdef __linux__
 	int csum_offset, sz_opt;
 #endif
@@ -726,7 +760,8 @@ int main(int argc, char *argv[])
 	firsthop.sin6_family = AF_INET6;
 
 	preload = 1;
-	while ((ch = getopt(argc, argv, COMMON_OPTSTR "F:N:")) != EOF) {
+	ncping = 0;
+	while ((ch = getopt(argc, argv, COMMON_OPTSTR "F:N:Z")) != EOF) {
 		switch(ch) {
 		case 'F':
 			flowlabel = hextoui(optarg);
@@ -791,6 +826,10 @@ int main(int argc, char *argv[])
 				usage();
 				break;
 			}
+			break;
+		case 'Z':
+			ncping = 1;
+			printf("daveti: ncping6 enabled\n");
 			break;
 		COMMON_OPTIONS
 			common_options(ch);
@@ -1245,9 +1284,16 @@ int main(int argc, char *argv[])
 
 	setup(icmp_sock);
 
+	/* daveti: setup the arpsec NDP sock */
+	if (ncping)
+		setup_ndp_sock();
+
 	drop_capabilities();
 
+	/* daveti: extend the loop
 	main_loop(icmp_sock, packet, packlen);
+	*/
+	main_loop(icmp_sock, packet, packlen, ndp_sock, ncping);
 }
 
 int receive_error_msg()
@@ -1851,6 +1897,7 @@ void usage(void)
 		" [-w deadline]"
 		USAGE_NEWLINE
 		" [-W timeout]"
+		" [-Z ncping]"
 #ifdef ENABLE_PING6_RTHDR
 		" [hop1 ...]"
 #endif

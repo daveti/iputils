@@ -33,6 +33,12 @@
 #include <linux/types.h>
 #include <linux/errqueue.h>
 
+/* daveti: for arpsec IPv6 */
+#include <asm/types.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <sys/socket.h>
+
 #include "SNAPSHOT.h"
 
 #define	DEFDATALEN	(64 - 8)	/* default data length */
@@ -277,7 +283,7 @@ extern void install_filter(void);
 extern int pinger(void);
 extern void sock_setbufs(int icmp_sock, int alloc);
 extern void setup(int icmp_sock);
-extern void main_loop(int icmp_sock, __u8 *buf, int buflen) __attribute__((noreturn));
+extern void main_loop(int icmp_sock, __u8 *buf, int buflen, int nl_sock, int ncping) __attribute__((noreturn));
 extern void finish(void) __attribute__((noreturn));
 extern void status(void);
 extern void common_options(int ch);
