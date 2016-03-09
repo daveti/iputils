@@ -3,6 +3,10 @@
 #include <sched.h>
 #include <math.h>
 
+//daveti: timing metrics for big rtt value - workaround for arpsec
+#define NCPING_ARPSEC_RTT_THRESHOLD	10000 // 10ms
+#define NCPING_NDP_SOCK_IF_NAME		"eth1"
+
 int options;
 
 int mark;
@@ -14,6 +18,13 @@ __u16 acked;
 
 struct rcvd_table rcvd_tbl;
 
+/* daveti: for arpsec ncping */
+long nreceived_arpsec;
+long nrepeats_arpsec;
+long tmin_arpsec = LONG_MAX;
+long tmax_arpsec;
+long long tsum_arpsec;
+long long tsum2_arpsec;
 
 /* counters */
 long npackets;			/* max packets to transmit */
@@ -69,6 +80,12 @@ static int screen_width = INT_MAX;
 static cap_value_t cap_raw = CAP_NET_RAW;
 static cap_value_t cap_admin = CAP_NET_ADMIN;
 #endif
+
+/* daveti: clear the neighbor cache given the IPv6 */
+static int ncping_clear_neigh_cache(int nl_sock, char *ip)
+{
+	return 0;
+}
 
 void limit_capabilities(void)
 {
@@ -708,7 +725,8 @@ void setup(int icmp_sock)
 	}
 }
 
-void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping)
+/* daveti: extended for arpsec */
+void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping, char *tip)
 {
 	char addrbuf[128];
 	char ans_data[4096];
@@ -718,6 +736,9 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping
 	int cc;
 	int next;
 	int polling;
+
+	/* daveti: debug */
+	int dd = 0;
 
 	iov.iov_base = (char *)packet;
 
@@ -735,6 +756,17 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping
 
 		/* Send probes scheduled to this time. */
 		do {
+			/* daveti: arpsec ncping */
+			if (ncping) {
+				dd++;
+				sleep(5);
+				next = ncping_clear_neigh_cache(nl_sock, tip);
+				if (next != 0)
+					printf("Error: ncping6 unable to clear the neigh cache for IP [%s]\n",
+						tip);
+				printf("daveti: debug [%d]\n", dd);
+			}
+
 			next = pinger();
 			next = schedule_exit(next);
 		} while (next <= 0);
@@ -882,12 +914,25 @@ restamp:
 			}
 		}
 		if (!csfailed) {
-			tsum += triptime;
-			tsum2 += (long long)triptime * (long long)triptime;
-			if (triptime < tmin)
-				tmin = triptime;
-			if (triptime > tmax)
-				tmax = triptime;
+			/* daveti: arpsec ncping */
+			if (triptime >= NCPING_ARPSEC_RTT_THRESHOLD) {
+				--nreceived;
+				++nreceived_arpsec;
+
+				tsum_arpsec += triptime;
+				tsum2_arpsec += (long long)triptime * (long long)triptime;
+				if (triptime < tmin_arpsec)
+					tmin_arpsec = triptime;
+				if (triptime > tmax_arpsec)
+				tmax_arpsec = triptime;
+			} else {
+				tsum += triptime;
+				tsum2 += (long long)triptime * (long long)triptime;
+				if (triptime < tmin)
+					tmin = triptime;
+				if (triptime > tmax)
+					tmax = triptime;
+			}
 			if (!rtt)
 				rtt = triptime*8;
 			else
@@ -1016,6 +1061,13 @@ void finish(void)
 			      ntransmitted));
 		printf(", time %ldms", 1000*tv.tv_sec+tv.tv_usec/1000);
 	}
+
+	/* daveti: ncping */
+	if (nreceived_arpsec)
+		printf(", +%ld received(thresholded)", nreceived_arpsec);
+	if (nrepeats_arpsec)
+		printf(", +%ld duplicates(thresholded)", nrepeats_arpsec);
+
 	putchar('\n');
 
 	if (nreceived && timing) {
@@ -1031,6 +1083,24 @@ void finish(void)
 		       (long)tmax/1000, (long)tmax%1000,
 		       (long)tmdev/1000, (long)tmdev%1000
 		       );
+
+		/* daveti: ncping */
+		if (nreceived_arpsec + nrepeats_arpsec != 0) {
+			long tmdev_arpsec;
+			tsum_arpsec /= nreceived_arpsec + nrepeats_arpsec;
+			tsum2_arpsec /= nreceived_arpsec + nrepeats_arpsec;
+			tmdev_arpsec = llsqrt(tsum2_arpsec - tsum_arpsec * tsum_arpsec);
+
+                	printf("rtt(thresholded) min/avg/max/mdev = %ld.%03ld/%lu.%03ld/%ld.%03ld/%ld.%03ld ms\n",
+				(long)tmin_arpsec/1000, (long)tmin_arpsec%1000,
+				(unsigned long)(tsum_arpsec/1000), (long)(tsum_arpsec%1000),
+				(long)tmax_arpsec/1000, (long)tmax_arpsec%1000,
+				(long)tmdev_arpsec/1000, (long)tmdev_arpsec%1000
+				);
+		} else {
+			printf("No arpsec thresholded rtt value");
+		}
+
 		comma = ", ";
 	}
 	if (pipesize > 1) {

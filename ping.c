@@ -590,7 +590,7 @@ main(int argc, char **argv)
 	/* daveti: for arpsec
 	main_loop(icmp_sock, packet, packlen);
 	*/
-	main_loop(icmp_sock, packet, packlen, 0, 0);
+	main_loop(icmp_sock, packet, packlen, 0, 0, hostname);
 }
 
 

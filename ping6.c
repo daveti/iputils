@@ -1293,7 +1293,7 @@ int main(int argc, char *argv[])
 	/* daveti: extend the loop
 	main_loop(icmp_sock, packet, packlen);
 	*/
-	main_loop(icmp_sock, packet, packlen, ndp_sock, ncping);
+	main_loop(icmp_sock, packet, packlen, ndp_sock, ncping, hostname);
 }
 
 int receive_error_msg()

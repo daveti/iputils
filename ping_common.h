@@ -283,7 +283,7 @@ extern void install_filter(void);
 extern int pinger(void);
 extern void sock_setbufs(int icmp_sock, int alloc);
 extern void setup(int icmp_sock);
-extern void main_loop(int icmp_sock, __u8 *buf, int buflen, int nl_sock, int ncping) __attribute__((noreturn));
+extern void main_loop(int icmp_sock, __u8 *buf, int buflen, int nl_sock, int ncping, char *tip) __attribute__((noreturn));
 extern void finish(void) __attribute__((noreturn));
 extern void status(void);
 extern void common_options(int ch);
