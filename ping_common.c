@@ -2,10 +2,14 @@
 #include <ctype.h>
 #include <sched.h>
 #include <math.h>
+//daveti: using libnl
+#include <netlink/route/neighbour.h>
 
 //daveti: timing metrics for big rtt value - workaround for arpsec
 #define NCPING_ARPSEC_RTT_THRESHOLD	10000 // 10ms
+#define NCPING_ARPSEC_SLEEP_TIME	5     // 5s
 #define NCPING_NDP_SOCK_IF_NAME		"eth1"
+#define NCPING_ARPSEC_NETLINK_ATTR_BUF_LEN	512
 
 int options;
 
@@ -759,7 +763,7 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping
 			/* daveti: arpsec ncping */
 			if (ncping) {
 				dd++;
-				sleep(5);
+				sleep(NCPING_ARPSEC_SLEEP_TIME);
 				next = ncping_clear_neigh_cache(nl_sock, tip);
 				if (next != 0)
 					printf("Error: ncping6 unable to clear the neigh cache for IP [%s]\n",

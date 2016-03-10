@@ -1,0 +1,111 @@
+[root@daveti src]# ./nl-neigh-add -h
+Usage: nl-neigh-add [OPTION]... NEIGHBOUR
+
+Options
+     --update-only     Do not create neighbour, updates exclusively
+     --create-only     Do not update neighbour if it exists already.
+ -q, --quiet           Do not print informal notifications
+ -h, --help            Show this help
+ -v, --version         Show versioning information
+
+Neighbour Options
+ -a, --addr=ADDR       Destination address of neighbour
+ -l, --lladdr=ADDR     Link layer address of neighbour
+ -d, --dev=DEV         Device the neighbour is connected to
+     --state=STATE     Neighbour state, (default = permanent)
+
+Example
+  nl-neigh-add --create-only --addr=10.0.0.1 --dev=eth0 \
+               --lladdr=AA:BB:CC:DD:EE:FF
+[root@daveti src]# nl-neigh-add --create-only --addr=2001:db8:a0b:12f0::1 --dev=em1 --lladdr=AA:BB:CC:DD:EE:FF
+bash: nl-neigh-add: command not found...
+[root@daveti src]# ./nl-neigh-add --create-only --addr=2001:db8:a0b:12f0::1 --dev=em1 --lladdr=AA:BB:CC:DD:EE:FF
+Added 2001:db8:a0b:12f0::1 dev em1 lladdr aa:bb:cc:dd:ee:ff 
+[root@daveti src]# ./nl-neigh-add --create-only --addr=2001:db8:a0b:12f0::1 --dev=em1 --lladdr=AA:BB:CC:DD:EE:FF^C
+[root@daveti src]# ./nl-neigh-delete -h
+Usage: nl-neigh-delete [OPTION]... [NEIGHBOUR]
+
+Options
+ -i, --interactive     Run interactively
+     --yes             Set default answer to yes
+ -q, --quiet           Do not print informal notifications
+ -h, --help            Show this help
+ -v, --version         Show versioning information
+
+Neighbour Options
+ -a, --addr=ADDR       Destination address of neighbour
+ -l, --lladdr=ADDR     Link layer address of neighbour
+ -d, --dev=DEV         Device the neighbour is connected to
+     --family=FAMILY   Destination address family
+     --state=STATE     Neighbour state, (default = permanent)
+[root@daveti src]# ./nl-neigh-delete --addr=2001:db8:a0b:12f0::1 --dev=em1
+Deleted 2001:db8:a0b:12f0::1 dev em1 lladdr aa:bb:cc:dd:ee:ff <permanent>
+Deleted 1 neighbours
+[root@daveti src]# 
+
+
+
+[daveti@daveti iputils]$ ip -6 neigh
+fe80::ae87:a3ff:fe1e:6816 dev em1 lladdr ac:87:a3:1e:68:16 STALE
+fe80::23e:e1ff:febe:8cc8 dev em1 lladdr 00:3e:e1:be:8c:c8 STALE
+fe80::21d:72ff:feb7:3721 dev em1 lladdr 00:1d:72:b7:37:21 STALE
+fe80::21d:72ff:feb7:33da dev em1 lladdr 00:1d:72:b7:33:da STALE
+fe80::21d:72ff:feb7:377c dev em1 lladdr 00:1d:72:b7:37:7c STALE
+fe80::e4d:e9ff:fea7:30fd dev em1 lladdr 0c:4d:e9:a7:30:fd STALE
+fe80::baca:3aff:fe8e:39b3 dev em1 lladdr b8:ca:3a:8e:39:b3 STALE
+fe80::ca60:ff:fee2:28bf dev em1 lladdr c8:60:00:e2:28:bf STALE
+fe80::7a2b:cbff:fe91:bedb dev em1 lladdr 78:2b:cb:91:be:db STALE
+fe80::ca60:ff:fee2:2904 dev em1 lladdr c8:60:00:e2:29:04 STALE
+fe80::e4d:e9ff:fece:3e13 dev em1 lladdr 0c:4d:e9:ce:3e:13 STALE
+[daveti@daveti iputils]$ ip -6 neigh
+fe80::ae87:a3ff:fe1e:6816 dev em1 lladdr ac:87:a3:1e:68:16 STALE
+fe80::23e:e1ff:febe:8cc8 dev em1 lladdr 00:3e:e1:be:8c:c8 STALE
+fe80::21d:72ff:feb7:3721 dev em1 lladdr 00:1d:72:b7:37:21 STALE
+fe80::21d:72ff:feb7:33da dev em1 lladdr 00:1d:72:b7:33:da STALE
+fe80::21d:72ff:feb7:377c dev em1 lladdr 00:1d:72:b7:37:7c STALE
+fe80::e4d:e9ff:fea7:30fd dev em1 lladdr 0c:4d:e9:a7:30:fd STALE
+fe80::baca:3aff:fe8e:39b3 dev em1 lladdr b8:ca:3a:8e:39:b3 STALE
+fe80::ca60:ff:fee2:28bf dev em1 lladdr c8:60:00:e2:28:bf STALE
+2001:db8:a0b:12f0::1 dev em1 lladdr aa:bb:cc:dd:ee:ff PERMANENT
+fe80::7a2b:cbff:fe91:bedb dev em1 lladdr 78:2b:cb:91:be:db STALE
+fe80::ca60:ff:fee2:2904 dev em1 lladdr c8:60:00:e2:29:04 STALE
+fe80::e4d:e9ff:fece:3e13 dev em1 lladdr 0c:4d:e9:ce:3e:13 STALE
+[daveti@daveti iputils]$ ip -6 neigh
+fe80::ae87:a3ff:fe1e:6816 dev em1 lladdr ac:87:a3:1e:68:16 STALE
+fe80::23e:e1ff:febe:8cc8 dev em1 lladdr 00:3e:e1:be:8c:c8 STALE
+fe80::21d:72ff:feb7:3721 dev em1 lladdr 00:1d:72:b7:37:21 STALE
+fe80::21d:72ff:feb7:33da dev em1 lladdr 00:1d:72:b7:33:da STALE
+fe80::21d:72ff:feb7:377c dev em1 lladdr 00:1d:72:b7:37:7c STALE
+fe80::e4d:e9ff:fea7:30fd dev em1 lladdr 0c:4d:e9:a7:30:fd STALE
+fe80::baca:3aff:fe8e:39b3 dev em1 lladdr b8:ca:3a:8e:39:b3 STALE
+fe80::ca60:ff:fee2:28bf dev em1 lladdr c8:60:00:e2:28:bf STALE
+2001:db8:a0b:12f0::1 dev em1  FAILED
+fe80::7a2b:cbff:fe91:bedb dev em1 lladdr 78:2b:cb:91:be:db STALE
+fe80::ca60:ff:fee2:2904 dev em1 lladdr c8:60:00:e2:29:04 STALE
+fe80::e4d:e9ff:fece:3e13 dev em1 lladdr 0c:4d:e9:ce:3e:13 STALE
+[daveti@daveti iputils]$ ip -6 neigh
+fe80::ae87:a3ff:fe1e:6816 dev em1 lladdr ac:87:a3:1e:68:16 STALE
+fe80::23e:e1ff:febe:8cc8 dev em1 lladdr 00:3e:e1:be:8c:c8 STALE
+fe80::21d:72ff:feb7:3721 dev em1 lladdr 00:1d:72:b7:37:21 STALE
+fe80::21d:72ff:feb7:33da dev em1 lladdr 00:1d:72:b7:33:da STALE
+fe80::21d:72ff:feb7:377c dev em1 lladdr 00:1d:72:b7:37:7c STALE
+fe80::e4d:e9ff:fea7:30fd dev em1 lladdr 0c:4d:e9:a7:30:fd STALE
+fe80::baca:3aff:fe8e:39b3 dev em1 lladdr b8:ca:3a:8e:39:b3 STALE
+fe80::ca60:ff:fee2:28bf dev em1 lladdr c8:60:00:e2:28:bf STALE
+2001:db8:a0b:12f0::1 dev em1  FAILED
+fe80::7a2b:cbff:fe91:bedb dev em1 lladdr 78:2b:cb:91:be:db STALE
+fe80::ca60:ff:fee2:2904 dev em1 lladdr c8:60:00:e2:29:04 STALE
+fe80::e4d:e9ff:fece:3e13 dev em1 lladdr 0c:4d:e9:ce:3e:13 STALE
+[daveti@daveti iputils]$ ip -6 neigh
+fe80::ae87:a3ff:fe1e:6816 dev em1 lladdr ac:87:a3:1e:68:16 STALE
+fe80::23e:e1ff:febe:8cc8 dev em1 lladdr 00:3e:e1:be:8c:c8 STALE
+fe80::21d:72ff:feb7:3721 dev em1 lladdr 00:1d:72:b7:37:21 STALE
+fe80::21d:72ff:feb7:33da dev em1 lladdr 00:1d:72:b7:33:da STALE
+fe80::21d:72ff:feb7:377c dev em1 lladdr 00:1d:72:b7:37:7c STALE
+fe80::e4d:e9ff:fea7:30fd dev em1 lladdr 0c:4d:e9:a7:30:fd STALE
+fe80::baca:3aff:fe8e:39b3 dev em1 lladdr b8:ca:3a:8e:39:b3 STALE
+fe80::ca60:ff:fee2:28bf dev em1 lladdr c8:60:00:e2:28:bf STALE
+2001:db8:a0b:12f0::1 dev em1  FAILED
+fe80::7a2b:cbff:fe91:bedb dev em1 lladdr 78:2b:cb:91:be:db STALE
+fe80::ca60:ff:fee2:2904 dev em1 lladdr c8:60:00:e2:29:04 STALE
+fe80::e4d:e9ff:fece:3e13 dev em1 lladdr 0c:4d:e9:ce:3e:13 STALE

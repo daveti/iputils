@@ -6,6 +6,7 @@
 CC=gcc
 # Path to parent kernel include files directory
 LIBC_INCLUDE=/usr/include
+LIBNL_INCLUDE=-I/usr/include/libnl3
 # Libraries
 ADDLIB=
 # Linker flags
@@ -17,6 +18,7 @@ LDFLAG_CRYPTO=-lcrypto
 LDFLAG_IDN=-lidn
 LDFLAG_RESOLV=-lresolv
 LDFLAG_SYSFS=-lsysfs
+LDFLAG_NL=-lnl-route-3
 
 #
 # Options
@@ -28,6 +30,8 @@ USE_CAP=yes
 USE_SYSFS=no
 # IDN support (experimental) [no|yes|static]
 USE_IDN=no
+# Netlink support
+USE_NL=yes
 
 # Do not use getifaddrs [no|yes|static]
 WITHOUT_IFADDRS=no
@@ -88,6 +92,12 @@ ifneq ($(USE_IDN),no)
 	LIB_IDN = $(call FUNC_LIB,$(USE_IDN),$(LDFLAG_IDN))
 endif
 
+# USE_NL: DEF_NL, LIB_NL
+ifneq ($(USE_NL),no)
+	DEF_NL = -DUSE_NL
+	LIB_NL = $(call FUNC_LIB,$(USE_NL),$(LDFLAG_NL))
+endif
+
 # WITHOUT_IFADDRS: DEF_WITHOUT_IFADDRS
 ifneq ($(WITHOUT_IFADDRS),no)
 	DEF_WITHOUT_IFADDRS = -DWITHOUT_IFADDRS
@@ -111,7 +121,7 @@ IPV4_TARGETS=tracepath ping clockdiff rdisc arping tftpd rarpd
 IPV6_TARGETS=tracepath6 traceroute6 ping6
 TARGETS=$(IPV4_TARGETS) $(IPV6_TARGETS)
 
-CFLAGS=$(CCOPTOPT) $(CCOPT) $(GLIBCFIX) $(DEFINES)
+CFLAGS=$(CCOPTOPT) $(CCOPT) $(GLIBCFIX) $(DEFINES) $(LIBNL_INCLUDE)
 LDLIBS=$(LDLIB) $(ADDLIB)
 
 UNAME_N:=$(shell uname -n)
@@ -147,11 +157,11 @@ DEF_clockdiff = $(DEF_CAP)
 LIB_clockdiff = $(LIB_CAP)
 
 # ping / ping6
-DEF_ping_common = $(DEF_CAP) $(DEF_IDN)
-DEF_ping  = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS)
-LIB_ping  = $(LIB_CAP) $(LIB_IDN)
-DEF_ping6 = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_ENABLE_PING6_RTHDR) $(DEF_CRYPTO)
-LIB_ping6 = $(LIB_CAP) $(LIB_IDN) $(LIB_RESOLV) $(LIB_CRYPTO)
+DEF_ping_common = $(DEF_CAP) $(DEF_IDN) $(DEF_NL)
+DEF_ping  = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_NL)
+LIB_ping  = $(LIB_CAP) $(LIB_IDN) $(LIB_NL)
+DEF_ping6 = $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) $(DEF_ENABLE_PING6_RTHDR) $(DEF_CRYPTO) $(DEF_NL)
+LIB_ping6 = $(LIB_CAP) $(LIB_IDN) $(LIB_RESOLV) $(LIB_CRYPTO) $(LIB_NL)
 
 ping: ping_common.o
 ping6: ping_common.o

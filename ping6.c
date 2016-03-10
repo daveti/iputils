@@ -723,6 +723,8 @@ static void setup_ndp_sock()
 		close(ndp_sock);
 		ndp_sock = 0;
 	}
+
+	printf("daveti: netlink socket is ready\n");
 }
 
 int main(int argc, char *argv[])
