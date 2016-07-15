@@ -1,5 +1,7 @@
 #include "ping_common.h"
 #include <ctype.h>
+#include <errno.h>
+#include <string.h>
 #include <sched.h>
 #include <math.h>
 //daveti: using libnl
@@ -10,6 +12,9 @@
 #define NCPING_ARPSEC_SLEEP_TIME	5     // 5s
 #define NCPING_NDP_SOCK_IF_NAME		"eth1"
 #define NCPING_ARPSEC_NETLINK_ATTR_BUF_LEN	512
+
+//#define CLEARWITHOUTSYS	0 // if not defined, use system(DELETE_NEIGH_CMD) call
+#define DELETE_NEIGH_CMD	"ip neigh del 2001:db8:0:100:38cb:35b9:7394:ca34 dev eth1"
 
 int options;
 
@@ -88,6 +93,286 @@ static cap_value_t cap_admin = CAP_NET_ADMIN;
 /* daveti: clear the neighbor cache given the IPv6 */
 static int ncping_clear_neigh_cache(int nl_sock, char *ip)
 {
+#ifdef CLEARWITHOUTSYS
+
+	/* libnl accomplishes this via: rtnl_neigh_delete (can we avoid libnl?)
+	 * args = struct nl_sock *sk; struct rtnl_neigh *neigh; int flags; */
+
+	/* FOR REFERENCE: a ndmsg struct contains the following:
+	 *	unsigned char ndm_family;
+	 *	int           ndm_ifindex;  // Interface index
+	 *	__u16         ndm_state;    // State
+ 	 *	__u8          ndm_flags;    // Flags
+	 *	__u8          ndm_type;
+	 * FOR REFERENCE: a nlmsghdr struct contains the following:
+	 *	__u32 nlmsg_len;    // Length of message including header.
+	 *	__u16 nlmsg_type;   // Type of message content.
+	 *	__u16 nlmsg_flags;  // Additional flags.
+	 *	__u32 nlmsg_seq;    // Sequence number.
+	 *	__u32 nlmsg_pid;    // PID of the sending process. */
+
+	/* FOR REFERENCE: a msghdr struct contains the following:
+	 *	void         *msg_name;       // optional address
+	 *	socklen_t     msg_namelen;    // size of address
+	 *	struct iovec *msg_iov;        // scatter/gather array
+	 *	size_t        msg_iovlen;     // # elements in msg_iov
+	 *	void         *msg_control;    // ancillary data, see below
+	 *	size_t        msg_controllen; // ancillary data buffer len
+	 *	int           msg_flags;      // flags on received message */
+		
+	struct {
+                struct nlmsghdr         nlhdr;
+                struct ndmsg            msg;
+                char                    buf[256];
+        } req; // this sort of construction implemented by iproute2
+	memset(&req, 0, sizeof(req));
+
+	// struct nlmsghdr *nlhdr; 
+
+	/* struct ndmsg msg = {
+		.ndm_family = AF_INET6,
+		.ndm_ifindex = if_nametoindex("eth1"), // specify interface
+		.ndm_flags = 0,
+		.ndm_state = NUD_PERMANENT, //| NUD_REACHABLE,
+		.ndm_type = 0,
+	}; // this sort of construction implemented by libnl */
+
+	req.msg.ndm_family = AF_INET6;
+	req.msg.ndm_ifindex = if_nametoindex(NCPING_NDP_SOCK_IF_NAME); // specify inteface
+	req.msg.ndm_flags = 0;
+	req.msg.ndm_state = NUD_PERMANENT;
+	req.msg.ndm_type = 0;
+
+	struct sockaddr_nl *nl_sock_addr;
+	socklen_t nl_len = sizeof(struct sockaddr_nl);
+	struct msghdr hdr = {
+                .msg_namelen = sizeof(struct sockaddr_nl), 
+        };
+	// struct sockaddr_in6 *possible_match;
+	char tgt_buf[sizeof(struct in6_addr)];
+	struct iovec iov;
+	struct sockaddr_nl header_name = {
+		.nl_family = AF_NETLINK,
+		.nl_pad = 0,
+		.nl_pid = 0,
+		.nl_groups = 0,
+	};
+
+	/* struct rtattr dest_ip = {
+		.rta_len = 20, // two shorts for rtattr, followed by 16 bytes of ipaddr
+		.rta_type = NDA_DST, // DESTINATION IP
+	};
+	struct rtattr dest_ll = {
+		.rta_len = 10, // two shorts for rtattr, followed by 6 bytes of lladdr
+		.rta_type = NDA_LLADDR, // LINK ADDRESS
+	}; */
+
+	int dblCheck;
+
+	nl_sock_addr = malloc(sizeof(*nl_sock_addr));
+	if (!nl_sock_addr) {
+		perror("malloc failed for sockaddr_nl");
+		return -1;
+	}
+	memset(nl_sock_addr, 0, sizeof(*nl_sock_addr));
+
+	dblCheck = getsockname(nl_sock, (struct sockaddr *)nl_sock_addr, &nl_len);
+	printf("ping_common.c | getsockname returned: %i\n", dblCheck);
+	hdr.msg_name = &header_name; // place the socket addr corresponding to nl_sock; void * cast not in iproute
+
+	printf("Debug: UID = %i, EUID = %i\n", getuid(), geteuid());
+
+	// printf("ping_common.c | the ifindex of ndmsg is: %i\n", msg.ndm_ifindex); // manually set this
+	printf("ping_common.c | the ifindex of ndmsg is: %i\n", req.msg.ndm_ifindex); // manually set this
+	
+	/* nlhdr = malloc(NLMSG_ALIGN(NLMSG_LENGTH(sizeof(struct ndmsg))) + RTA_ALIGN(dest_ip.rta_len) + RTA_ALIGN(dest_ll.rta_len));
+	// nlhdr = malloc(NLMSG_ALIGN(NLMSG_LENGTH(sizeof(struct ndmsg))) + RTA_ALIGN(dest_ip.rta_len));
+
+	if (!nlhdr) {
+		perror("malloc failed for nlmsghdr");
+		return -1;
+	}
+	memset(nlhdr, 0, sizeof(*nlhdr));
+	
+	nlhdr->nlmsg_type = RTM_DELNEIGH;
+	nlhdr->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	nlhdr->nlmsg_pid = 0; // as per man page, setting nlmsg_pid = 0 for kernel communication
+	// nlhdr->nlmsg_pid = nl_sock_addr->nl_pid;
+	nlhdr->nlmsg_seq = seqNo; // sequence number; dd (unique) gets incremented each time before clear is called */
+
+	req.nlhdr.nlmsg_type = RTM_DELNEIGH;
+	req.nlhdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+	req.nlhdr.nlmsg_pid = 0;
+	req.nlhdr.nlmsg_seq = time(NULL); // chose to use time for the sequence number (unique)	
+
+	// At this point, header is almost complete, but missing nlmsg_len and attachment to payload (ndmsg)
+	// gotta memcpy this stuff into da HDR
+
+	// nlhdr->nlmsg_len = NLMSG_ALIGN(NLMSG_LENGTH(sizeof(struct ndmsg))) + RTA_ALIGN(dest_ip.rta_len) + RTA_ALIGN(dest_ll.rta_len); 	
+	// nlhdr->nlmsg_len = NLMSG_ALIGN(NLMSG_LENGTH(sizeof(struct ndmsg))) + RTA_ALIGN(dest_ip.rta_len);
+	req.nlhdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct ndmsg));
+	// memcpy(NLMSG_DATA(nlhdr), (void *) &msg, sizeof(struct ndmsg));
+	// memcpy((char *)nlhdr + NLMSG_LENGTH(0), &msg, sizeof(struct ndmsg));
+	
+	/* printf("*** nlmsghdr: len %u, type %u, flags %u, seq %u, pid %u\n", nlhdr->nlmsg_len, 
+nlhdr->nlmsg_type, nlhdr->nlmsg_flags, nlhdr->nlmsg_seq, nlhdr->nlmsg_pid);
+	printf("*** ndmsg   : fam %u, ifindex %i, flags %u, state %u, type %u\n", msg.ndm_family, msg.ndm_ifindex, msg.ndm_flags, msg.ndm_state, msg.ndm_type); */
+
+	/* struct {
+		struct rtattr	metadata;
+		unsigned char	payload[sizeof(struct in6_addr)];
+	} rtattr_ip_packed;
+	memset(&rtattr_ip_packed, 0, sizeof(rtattr_ip_packed)); */
+
+	/* if (inet_pton(AF_INET6, ip, rtattr_ip_packed.payload) <= 0)
+		printf("ping_common.c | Failed parsing of ip address\n"); */
+	if (inet_pton(AF_INET6, ip, tgt_buf) <= 0)
+		printf("ping_common.c | Failed parsing of ip address\n");
+
+	struct rtattr *rta;
+	rta = (struct rtattr *) (((void *) (&req.nlhdr)) + NLMSG_ALIGN((&req.nlhdr)->nlmsg_len)); // NLMSG_TAIL
+	rta->rta_type = NDA_DST;
+	rta->rta_len = RTA_LENGTH(sizeof(struct in6_addr));
+	memcpy(RTA_DATA(rta), tgt_buf, sizeof(struct in6_addr)); 
+	req.nlhdr.nlmsg_len = NLMSG_ALIGN(req.nlhdr.nlmsg_len) + RTA_ALIGN(rta->rta_len);
+	/* rtattr_ip_packed.metadata = dest_ip;
+	memcpy(NLMSG_DATA(nlhdr) + sizeof(struct ndmsg), (void *) &rtattr_ip_packed, dest_ip.rta_len); */
+
+	printf("*** nlmsghdr: len %u, type %u, flags %u, seq %u, pid %u\n", 
+req.nlhdr.nlmsg_len, req.nlhdr.nlmsg_type, req.nlhdr.nlmsg_flags, req.nlhdr.nlmsg_seq, req.nlhdr.nlmsg_pid);
+	printf("*** ndmsg   : fam %u, ifindex %i, flags %u, state %u, type %u\n", 
+req.msg.ndm_family, req.msg.ndm_ifindex, req.msg.ndm_flags, req.msg.ndm_state, req.msg.ndm_type);
+
+	/* struct {
+		struct rtattr metadata;
+		unsigned char	payload[6];
+	} rtattr_ll_packed;
+	memset(&rtattr_ll_packed, 0, sizeof(rtattr_ll_packed));
+	rtattr_ll_packed.metadata = dest_ll;
+	// insert hex entries corresponding to the LL Address into rtattr_ll_packed_payload; removed
+	memcpy(NLMSG_DATA(nlhdr) + sizeof(struct ndmsg) + dest_ip.rta_len, (void *) &rtattr_ll_packed, dest_ll.rta_len); */
+
+	iov.iov_base = (void *) &req.nlhdr;
+	iov.iov_len = req.nlhdr.nlmsg_len;
+
+	int i;
+	unsigned char *ptr = (unsigned char *)iov.iov_base;
+	for (i = 0; i < iov.iov_len; i++) {
+		printf("%x ", ptr[i]);
+	}
+	printf("\n");
+
+	hdr.msg_iov = &iov;
+	hdr.msg_iovlen = 1; // number of elements in iovec
+
+	struct sockaddr_nl * testname = (struct sockaddr_nl *)hdr.msg_name;
+        printf("*** msghdr  : name : family %i, pad %i, pid %i, groups %u\n", 
+testname->nl_family, testname->nl_pad, testname->nl_pid, testname->nl_groups);	
+	if (hdr.msg_control == NULL)
+		printf("***         : control is NULL as expected\n");
+	else
+		printf("***         : control is NOT NULL\n");
+	printf("***         : namelen %i, iov_num_elements %zu, controllen %zu, flags %i\n", 
+hdr.msg_namelen, hdr.msg_iovlen, hdr.msg_controllen, hdr.msg_flags);
+	printf("***         : iovec's iov_len %zu\n", hdr.msg_iov->iov_len);
+
+	/* iovec contents: 30 0 0 0 (length = 48) 1d 0 (type = 29) 5 0 (flags) 37 f3 83 57 (seqno) 0 0 0 0 (pid) 
+         *       	   a (family) 0 0 0 3 (ifindex) 0 0 0 80 (state = PERMANENT) 0 (flags) 0 (type) 0 
+         *       	   14 0 (rtattr: length) 1 0 (type: destination IP) [20 1 d b8 0 0 1 0 38 cb 35 b9 73 94 ca 34 = IP] */
+	
+	if (sendmsg(nl_sock, &hdr, 0) < 0) { // sendmsg(<socket descriptor>, <struct msghdr>, 0)
+		printf("ping_common.c | Error sending message to kernel, errno: %i [%s]\n", errno, strerror(errno));
+		errno = 0;
+	} else
+		printf("ping_common.c | Successfully sent message over netlink socket\n");
+	
+	/* // GIVING UP EVERYTHING AND TRYING TO GET RTM_GETNEIGH working???
+	   // Result: operation not permitted
+        struct {
+                struct nlmsghdr getnlh;
+                struct rtgenmsg getg;
+        } getreq;
+
+        memset(&getreq, 0, sizeof(getreq));
+        getreq.getnlh.nlmsg_len = sizeof(getreq);
+        getreq.getnlh.nlmsg_type = RTM_GETNEIGH;
+        getreq.getnlh.nlmsg_flags = NLM_F_ROOT|NLM_F_MATCH|NLM_F_REQUEST;
+        getreq.getnlh.nlmsg_pid = 0;
+        getreq.getnlh.nlmsg_seq = seqNo;
+        getreq.getg.rtgen_family = AF_INET6;
+
+        send(nl_sock, (void*)&getreq, sizeof(getreq), 0); */
+
+	// Wait for and process the ack from kernel
+	//========== NOTE: adopted from iproute2:ipneigh's use of libnetlink
+	char buf[16384];
+	int status;
+	struct nlmsghdr *h;
+	memset(buf, 0, sizeof(buf));
+	iov.iov_base = buf;
+	while (1) {
+		iov.iov_len = sizeof(buf);
+		status = recvmsg(nl_sock, &hdr, 0);
+		if (status < 0) {
+			if (errno == EINTR)
+				continue;
+			perror("OVERRUN");
+			continue;
+		}
+		if (status == 0) {
+			fprintf(stderr, "EOF on netlink\n");
+			return -1;
+		}
+		if (hdr.msg_namelen != sizeof(struct sockaddr_nl)) {
+			fprintf(stderr, "sender address length == %d\n", hdr.msg_namelen);
+			exit(1);
+		}
+		for (h = (struct nlmsghdr *)buf; (unsigned)status >= sizeof(*h); ) {
+			int err;
+			int len = h->nlmsg_len;
+			int l = len - sizeof(*h);
+			if (l < 0 || len > status) {
+				if (hdr.msg_flags & MSG_TRUNC) {
+					fprintf(stderr, "Truncated message\n");
+					return -1;
+				}
+				fprintf(stderr, "!!!malformed message: len=%d\n", len);
+				exit(1);
+			}
+			if (h->nlmsg_type == NLMSG_ERROR) {
+				struct nlmsgerr *msgerr = (struct nlmsgerr*)NLMSG_DATA(h);
+				if ((unsigned)l < sizeof(struct nlmsgerr))
+					fprintf(stderr, "ERROR truncated\n");
+				else {
+					errno = -msgerr->error;
+					if (errno == 0) {
+						return 0;
+					}
+					perror("RTNETLINK answers");
+				}
+				return -1;
+			}
+			fprintf(stderr, "Unexpected reply!!!\n");
+			status -= NLMSG_ALIGN(len);
+			h = (struct nlmsghdr *)((char *)h+ NLMSG_ALIGN(len));
+		}
+		if (hdr.msg_flags & MSG_TRUNC) {
+			fprintf(stderr, "Message truncated\n");
+			continue;
+		}
+		if (status) {
+			fprintf(stderr, "!!!Remnant of size %d\n", status);
+			exit(1);
+		}
+	}
+	//========== NOTE: adopted from iproute2:ipneigh's use of libnetlink
+
+	printf("ping_common.c | Exiting ncping_clear_neigh_cache function\n");
+
+	/* free(nlhdr); */
+	free(nl_sock_addr);
+#endif
+
 	return 0;
 }
 
@@ -764,11 +1049,25 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping
 			if (ncping) {
 				dd++;
 				sleep(NCPING_ARPSEC_SLEEP_TIME);
+
+				/* printf("----- Print out neighbor cache\n");
+				if (system("ip -6 neigh") < 0)
+					printf("Failed to print neighbor cache\n");
+				printf("----- End printing neighbor cache\n"); */
+
+#ifndef CLEARWITHOUTSYS
+				/* jochoi: Backup Plan */
+				/* jochoi: NOTE cache is cleared before each ping operation, but
+				 *         cache is not cleared after last ping (ip neigh will show REACHABLE) */
+				if (system(DELETE_NEIGH_CMD) < 0)
+				 	printf("main loop: Failed to delete the neighbor cache entry\n");
+#else
 				next = ncping_clear_neigh_cache(nl_sock, tip);
 				if (next != 0)
 					printf("Error: ncping6 unable to clear the neigh cache for IP [%s]\n",
 						tip);
 				printf("daveti: debug [%d]\n", dd);
+#endif
 			}
 
 			next = pinger();
@@ -885,6 +1184,7 @@ void main_loop(int icmp_sock, __u8 *packet, int packlen, int nl_sock, int ncping
 			 * and return to pinger. */
 		}
 	}
+	drop_capabilities(); // jochoi
 	finish();
 }
 

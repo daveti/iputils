@@ -167,7 +167,7 @@ int pmtudisc=-1;
 static int icmp_sock;
 
 /* daveti: for ncping6 */
-static int ndp_sock;
+int ndp_sock;
 
 #ifdef USE_GNUTLS
 # include <gnutls/openssl.h>
@@ -696,7 +696,7 @@ static int hextoui(const char *str)
 }
 
 /* daveti: Setup the netlink socket for route control */
-static void setup_ndp_sock()
+static void setup_ndp_sock(void) // jochoi: added void param to suppress make warning
 {
 	struct sockaddr_nl	la;
 	int			rtn;
@@ -709,6 +709,14 @@ static void setup_ndp_sock()
 		ndp_sock = 0;
 		return;
 	}
+
+	/* IPROUTE2 sets the following socket options when opening the netlink socket */
+	/* int sndbuf = 32768;
+	int rcvbuf = 1024 * 1024;
+        if (setsockopt(ndp_sock,SOL_SOCKET,SO_SNDBUF,&sndbuf,sizeof(sndbuf)) < 0)
+                perror("SO_SNDBUF");
+        if (setsockopt(ndp_sock,SOL_SOCKET,SO_RCVBUF,&rcvbuf,sizeof(rcvbuf)) < 0)
+                perror("SO_RCVBUF"); */
 
 	/* Bind the local IPv6 address */
 	bzero(&la, sizeof(la));

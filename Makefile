@@ -6,7 +6,7 @@
 CC=gcc
 # Path to parent kernel include files directory
 LIBC_INCLUDE=/usr/include
-LIBNL_INCLUDE=-I/usr/include/libnl3
+LIBNL_INCLUDE=-I/usr/local/include/libnl3
 # Libraries
 ADDLIB=
 # Linker flags
@@ -19,6 +19,7 @@ LDFLAG_IDN=-lidn
 LDFLAG_RESOLV=-lresolv
 LDFLAG_SYSFS=-lsysfs
 LDFLAG_NL=-lnl-route-3
+LDFLAG_LRT=-lrt
 
 #
 # Options
@@ -32,6 +33,9 @@ USE_SYSFS=no
 USE_IDN=no
 # Netlink support
 USE_NL=yes
+
+# Time support for ARPING # jochoi
+USE_LRT=yes
 
 # Do not use getifaddrs [no|yes|static]
 WITHOUT_IFADDRS=no
@@ -78,6 +82,12 @@ LIB_RESOLV = $(call FUNC_LIB,$(USE_RESOLV),$(LDFLAG_RESOLV))
 ifneq ($(USE_CAP),no)
 	DEF_CAP = -DCAPABILITIES
 	LIB_CAP = $(call FUNC_LIB,$(USE_CAP),$(LDFLAG_CAP))
+endif
+
+# USE_LRT: DEF_LRT, LIB_LRT # jochoi: addition to use -lrt flag?
+ifneq ($(USE_LRT),no)
+	DEF_LRT = -DLRT
+	LIB_LRT = $(call FUNC_LIB,$(USE_LRT),$(LDFLAG_LRT))
 endif
 
 # USE_SYSFS: DEF_SYSFS, LIB_SYSFS
@@ -145,8 +155,8 @@ $(TARGETS): %: %.o
 
 # -------------------------------------
 # arping
-DEF_arping = $(DEF_SYSFS) $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS)
-LIB_arping = $(LIB_SYSFS) $(LIB_CAP) $(LIB_IDN)
+DEF_arping = $(DEF_SYSFS) $(DEF_LRT) $(DEF_CAP) $(DEF_IDN) $(DEF_WITHOUT_IFADDRS) # jochoi: added $(DEF_LRT)
+LIB_arping = $(LIB_SYSFS) $(LIB_LRT) $(LIB_CAP) $(LIB_IDN) # jochoi: added $(LIB_LRT)
 
 ifneq ($(ARPING_DEFAULT_DEVICE),)
 DEF_arping += -DDEFAULT_DEVICE=\"$(ARPING_DEFAULT_DEVICE)\"
